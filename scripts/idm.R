@@ -29,7 +29,7 @@ d$R = d$observed.illtime + 10
 
 
 standata <- idm_stan(X = d,
-                     K1 = 2:3, 
+                     K1 = 2:3,
                      K2 = 2:3,
                      K3 = 2:3)
 
@@ -41,7 +41,7 @@ dat_ID$tt = dat_ID$T
 
 formula01 <- Surv(time=R,event=delta_R)~x_c
 formula02 <- Surv(time=tt,event=delta_T)~x_c
-formula12 <- Surv(time=difft,event=delta_T)~x_c   
+formula12 <- Surv(time=difft,event=delta_T)~x_c
 
 
 
@@ -52,9 +52,9 @@ library(SemiCompRisks)
 set.seed(42)
 
 n <- 1500
-beta1.true <- c(0.1, 0.1)
-beta2.true <- c(0.2, 0.2)
-beta3.true <- c(0.3, 0.3)
+beta1.true <- c(1.1, 1.1)
+beta2.true <- c(1.2, 1.2)
+beta3.true <- c(1.3, 1.3)
 alpha1.true <- 0.12
 alpha2.true <- 0.23
 alpha3.true <- 0.34
@@ -69,14 +69,14 @@ x_m <- cbind(1, x_c)
 
 # Generate semicompeting data
 dat_ID <- simID(x1 = x_m, x2 = x_m, x3 = x_m,
-                beta1.true = beta1.true, 
-                beta2.true = beta2.true, 
+                beta1.true = beta1.true,
+                beta2.true = beta2.true,
                 beta3.true = beta3.true,
-                alpha1.true = alpha1.true, 
-                alpha2.true = alpha2.true, 
+                alpha1.true = alpha1.true,
+                alpha2.true = alpha2.true,
                 alpha3.true = alpha3.true,
-                kappa1.true = kappa1.true, 
-                kappa2.true = kappa2.true, 
+                kappa1.true = kappa1.true,
+                kappa2.true = kappa2.true,
                 kappa3.true = kappa3.true,
                 theta.true = theta.true,
                 cens = c(240, 360))
@@ -90,7 +90,7 @@ colnames(dat_ID)[1:4] <- c("R", "delta_R", "tt", "delta_T")
 dat_ID$ydiff <- 0
 dat_ID$ydiff[(dat_ID$tt - dat_ID$R) > 0] <- dat_ID$tt[(dat_ID$tt - dat_ID$R) > 0] - dat_ID$R[(dat_ID$tt - dat_ID$R) > 0]
 
-# 
+#
 data = dat_ID
 formula01 <- Surv(time=R,event=delta_R)~x_c
 formula02 <- Surv(time=tt,event=delta_T)~x_c
@@ -100,22 +100,23 @@ ms_data <- readRDS("data-raw/ms_data.RDS")
 
 
 
-standata <- idm_stan(formula01 = Surv(time=dftime,event=dfevent)~1,
-                     formula02 = Surv(time=ostime,event=osevent)~1,
-                     formula12 = Surv(time=timediff,event=osevent)~1,
-                     data = ms_data,
+standata <- idm_stan(formula01 = Surv(time=R,event=delta_R)~x_c,
+                     formula02 = Surv(time=tt,event=delta_T)~x_c,
+                     formula12 = Surv(time=ydiff,event=delta_T)~x_c,
+                     data = dat_ID,
                      basehaz01 = "weibull",
                      basehaz02 = "weibull",
                      basehaz12 = "weibull",
-                     prior01           = rstanarm::normal(), 
+                     prior01           = rstanarm::normal(),
                      prior_intercept01 = rstanarm::normal(),
                      prior_aux01       = rstanarm::normal(),
-                     prior02           = rstanarm::normal(), 
+                     prior02           = rstanarm::normal(),
                      prior_intercept02 = rstanarm::normal(),
                      prior_aux02       = rstanarm::normal(),
-                     prior12           = rstanarm::normal(), 
+                     prior12           = rstanarm::normal(),
                      prior_intercept12 = rstanarm::normal(),
-                     prior_aux12       = rstanarm::normal())
+                     prior_aux12       = rstanarm::normal()
+                     )
 standata$nevent01
 standata$nevent12
 
@@ -134,7 +135,7 @@ library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = 2)
 fit <- stan(file = stanfile,
-            data = standata, 
+            data = standata,
             pars = stanpars,
             iter = 2000,
             chains = 4,
