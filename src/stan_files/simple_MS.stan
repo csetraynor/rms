@@ -670,7 +670,14 @@ model {
       if (nrcens01type3 > 0) target +=  mspline_log_surv(eta_rcens01type3, ibasis_rcens01type3, coefs01);
       if (nevent01type4 > 0) target +=  mspline_log_haz(eta_event01type4,  basis_event01type4, coefs01);
       if (nevent01type4 > 0) target +=  mspline_log_surv(eta_event01type4,  ibasis_event01type4, coefs01);
-    } else {
+    } else if (type02 == 05) { // exponential model
+      if (nrcens01type1 > 0) target +=  exponential_log_surv(eta_rcens01type1, t_rcens01type1);
+      if (nevent01type2 > 0) target +=  exponential_log_haz(eta_event01type2);
+      if (nevent01type2 > 0) target +=  exponential_log_surv(eta_event01type2, t_event01type2);
+      if (nrcens01type3 > 0) target +=  exponential_log_surv(eta_rcens01type3, t_rcens01type3);
+      if (nevent01type4 > 0) target +=  exponential_log_haz(eta_event01type4);
+      if (nevent01type4 > 0) target +=  exponential_log_surv(eta_event01type4, t_event01type4);
+  } else {
       reject("Bug found: invalid baseline hazard 01 (without quadrature).");
     }
 
@@ -687,6 +694,12 @@ model {
     if (nevent02type3 > 0) target +=  mspline_log_haz(eta_event02type3, basis_event02type3, coefs02);
     if (nevent02type3 > 0) target +=  mspline_log_surv(eta_event02type3, ibasis_event02type3, coefs02);
     if (nrcens02type4 > 0) target +=  mspline_log_surv(eta_rcens02type4,  ibasis_rcens02type4, coefs02);
+  } else if (type02 == 05) { // exponential model
+  if (nrcens02type1 > 0) target +=  exponential_log_surv(eta_rcens02type1, t_rcens02type1);
+    if (nrcens02type2 > 0) target +=  exponential_log_surv(eta_rcens02type2, t_rcens02type2);
+    if (nevent02type3 > 0) target +=  exponential_log_haz(eta_event02type3);
+    if (nevent02type3 > 0) target +=  exponential_log_surv(eta_event02type3, t_event02type3);
+    if (nrcens02type4 > 0) target +=  exponential_log_surv(eta_rcens02type4, t_rcens02type4);
   } else {
     reject("Bug found: invalid baseline hazard 02 (without quadrature).");
   }
@@ -700,9 +713,14 @@ model {
     if (nrcens12type2 > 0) target +=  mspline_log_surv(eta_rcens12type2, ibasis_rcens12type2, coefs12);
     if (nevent12type4 > 0) target +=  mspline_log_haz(eta_event12type4,  basis_event12type4, coefs12);
     if (nevent12type4 > 0) target +=  mspline_log_surv(eta_event12type4,  ibasis_event12type4, coefs12);
+  } else if (type12 == 05) { // exponential model
+  if (nrcens12type2 > 0) target +=  exponential_log_surv(eta_rcens12type2, t_rcens12type2);
+    if (nevent12type4 > 0) target +=  exponential_log_haz(eta_event12type4);
+    if (nevent12type4 > 0) target +=  exponential_log_surv(eta_event12type4, t_event12type4);
   } else {
     reject("Bug found: invalid baseline hazard 12 (without quadrature).");
   }
+
 
   //-------- log priors
 
@@ -746,7 +764,6 @@ model {
   if (nvars12 > 0) {
     real dummy = basehaz_lp(z_coefs12, prior_dist_for_aux12);
   }
-
 }
 
 
@@ -782,6 +799,5 @@ generated quantities {
     aux12 = coefs12;
     alpha12[1] = log_crude_event_rate12 - dot_product(x_bar12, beta12) + gamma12[1];
   }
-
 }
 

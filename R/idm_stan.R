@@ -313,9 +313,9 @@ idm_stan <- function(formula01,
     )
   })
 
-  mf_stuff[[2]][[2]] <- make_model_frame(formula[[1]]$tf_form,
+  mf_stuff[[2]][[2]] <- make_model_frame(as.formula(paste0(c(formula[[1]]$lhs, formula[[2]]$rhs), collapse = "~") ),
                                          data[[2]][[2]])
-  mf_stuff[[2]][[4]] <- make_model_frame(formula[[1]]$tf_form,
+  mf_stuff[[2]][[4]] <- make_model_frame(as.formula(paste0(c(formula[[1]]$lhs, formula[[2]]$rhs), collapse = "~") ),
                                          data[[2]][[4]])
 
   mf <- lapply(mf_stuff, function(m) lapply(m, function(n) n$mf) )  # model frame
@@ -330,6 +330,7 @@ idm_stan <- function(formula01,
 
   # ensure no event or censoring times are zero (leads to degenerate
   # estimate for log hazard for most baseline hazards, due to log(0))
+
   for(i in seq_along(dlist(t_end) ) ){
     check1 <- any(dlist(t_end)[[i]] <= 0, na.rm = TRUE)
     if (check1)
@@ -435,10 +436,18 @@ idm_stan <- function(formula01,
   #----- predictor matrices
 
   # time-fixed predictor matrix
-  x_stuff <- lapply(mf[[1]], function(m) make_x(formula[[1]]$tf_form, m) )
-  x_stuff <- list(x_stuff, x_stuff, list(x_stuff[[2]], x_stuff[[4]]))
+  x_stuff01 <- lapply(mf[[1]], function(m) make_x(formula[[1]]$tf_form, m) )
+  x_stuff02 <- list(
+    make_x(formula[[2]]$tf_form, mf[[2]][[1]]),
+    make_x(as.formula(paste0(c(formula[[1]]$lhs, formula[[2]]$rhs), collapse = "~") ), mf[[2]][[2]]),
+    make_x(formula[[2]]$tf_form, mf[[2]][[3]]),
+    make_x(as.formula(paste0(c(formula[[1]]$lhs, formula[[2]]$rhs), collapse = "~") ), mf[[2]][[4]])
+                    )
 
-  x          <- lapply(x_stuff, function(m) lapply(m, function(n) n$x) )
+  x_stuff12 <- lapply(mf[[3]], function(m) make_x(formula[[3]]$tf_form, m) )
+  x_stuff <- list(x_stuff01, x_stuff02, x_stuff12)
+
+  x   <- lapply(x_stuff, function(m) lapply(m, function(n) n$x) )
 
   # column means of predictor matrix
   x_bar01 <- aa(colMeans(do.call(rbind, x[[1]])) )

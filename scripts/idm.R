@@ -52,9 +52,9 @@ library(SemiCompRisks)
 set.seed(42)
 
 n <- 1500
-beta1.true <- c(1.1, 1.1)
-beta2.true <- c(1.2, 1.2)
-beta3.true <- c(1.3, 1.3)
+beta1.true <- c(0.1, 0.1)
+beta2.true <- c(0.2, 0.2)
+beta3.true <- c(0.3, 0.3)
 alpha1.true <- 0.12
 alpha2.true <- 0.23
 alpha3.true <- 0.34
@@ -98,15 +98,31 @@ formula12 <- Surv(time=ydiff,event=delta_T)~x_c
 
 ms_data <- readRDS("data-raw/ms_data.RDS")
 
+set.seed(9911)
+covs <- data.frame(id = 1:1000, trt = stats::rbinom(1000, 1L, 0.5))
+
+#res = log(shape) + (shape - 1) * log(t) + eta;
 
 
-standata <- idm_stan(formula01 = Surv(time=R,event=delta_R)~x_c,
-                     formula02 = Surv(time=tt,event=delta_T)~x_c,
-                     formula12 = Surv(time=ydiff,event=delta_T)~x_c,
-                     data = dat_ID,
-                     basehaz01 = "weibull",
-                     basehaz02 = "weibull",
-                     basehaz12 = "weibull",
+ms_data <- rsimms_fn(
+  beta01 = -0.5,
+  covs = covs,
+  maxt = 50,
+  beta02 = -0.25,
+  beta12 = -1,
+  x = covs$trt)
+
+ms_data$dfevent[(ms_data$STATUS == 1) & ms_data$timediff == 0] <- 0
+
+ms_data$timediff[(ms_data$dfevent == 1) & (ms_data$timediff == 0)] <- 1e-5
+
+standata <- idm_stan(formula01 = Surv(time=dftime,event=dfevent)~trt,
+                     formula02 = Surv(time=ostime,event=osevent)~trt,
+                     formula12 = Surv(time=timediff,event=osevent)~trt,
+                     data = ms_data,
+                     basehaz01 = "ms",
+                     basehaz02 = "ms",
+                     basehaz12 = "ms",
                      prior01           = rstanarm::normal(),
                      prior_intercept01 = rstanarm::normal(),
                      prior_aux01       = rstanarm::normal(),
