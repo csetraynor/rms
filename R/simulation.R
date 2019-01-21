@@ -4,14 +4,14 @@ rsimms_fn <- function(gamma01 = 0, shape01 = 0, beta01 = 0, covs = 0, maxt = 50,
   x = am(x)
 
   fn01 <- function(t, x, betas,...){
-    (-1 + 0.02 * t - 0.03 * t ^ 2 + 0.005 * t ^ 3 + beta01 * x)
+    (-1 + 0.02 * t - 0.03 * t ^ 2 + 0.005 * t ^ 3 + exp(beta01 * x))
   }
   s1 <- simsurv(loghazard = fn01, x = covs, maxt = 1.5)
   colnames(s1)[2:3] <- c("yr", "dr")
 
   # simulate non-terminal event
   fn02 <- function(t, x, betas, ...){
-    (-1 + 0.02 * t - 0.03 * t ^ 2 + 0.005 * t ^ 3 + beta02 * x)
+    (-1 + 0.02 * t - 0.03 * t ^ 2 + 0.005 * t ^ 3 + exp(beta02 * x))
   }
   s2 <- simsurv(loghazard = fn02, x = covs, maxt = 1.5)
   head(s2)
@@ -31,10 +31,10 @@ rsimms_fn <- function(gamma01 = 0, shape01 = 0, beta01 = 0, covs = 0, maxt = 50,
   x3 <- x[s$dfevent == 1, ]
 
   fn12 <- function(t, x, betas ,...){
-    (-1 + 0.02 * t - 0.03 * t ^ 2 + 0.005 * t ^ 3 + beta12 * x3)
+    (-1 + 0.02 * t - 0.03 * t ^ 2 + 0.005 * t ^ 3 + exp(beta12 * x3))
   }
 
-  s3 <- simsurv(loghazard = fn12, x = covs3, maxt = 0.2)
+  s3 <- simsurv(loghazard = fn12, x = covs3, maxt = 0.02)
   head(s3)
   colnames(s2)[2:3] <- c("yt", "dt")
   s$ostime[s$dfevent == 1] <- s3$eventtime + s$ostime[s$dfevent == 1]
@@ -79,8 +79,8 @@ rsimms <- function(lambdas01, gammas01, beta01 = 0, covs, maxt = 50, lambdas02, 
   s$osevent[s$dfevent == 1] <- s3$status
 
   s$trt <- covs$trt
-  ms_data$timediff <- ms_data$ostime - ms_data$dftime
-  return(ms_data)
+  s$timediff <- s$ostime - s$dftime
+  return(s)
 }
 
 

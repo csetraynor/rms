@@ -115,14 +115,17 @@ ms_data <- rsimms_fn(
 ms_data$dfevent[(ms_data$STATUS == 1) & ms_data$timediff == 0] <- 0
 
 ms_data$timediff[(ms_data$dfevent == 1) & (ms_data$timediff == 0)] <- 1e-5
+ms_data <- s
+saveRDS(s, "data-raw/ms_simdata.RDS")
+ms_data <- s
 
 standata <- idm_stan(formula01 = Surv(time=dftime,event=dfevent)~trt,
-                     formula02 = Surv(time=ostime,event=osevent)~trt,
-                     formula12 = Surv(time=timediff,event=osevent)~trt,
+                     formula02 = Surv(time=ostime,event=osevent)~1,
+                     formula12 = Surv(time=timediff,event=osevent)~1,
                      data = ms_data,
                      basehaz01 = "ms",
-                     basehaz02 = "ms",
-                     basehaz12 = "ms",
+                     basehaz02 = "exp",
+                     basehaz12 = "exp",
                      prior01           = rstanarm::normal(),
                      prior_intercept01 = rstanarm::normal(),
                      prior_aux01       = rstanarm::normal(),
