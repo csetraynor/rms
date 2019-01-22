@@ -1,74 +1,74 @@
 functions {
 
   /**
-  * Log hazard for exponential distribution
+    * Log hazard for exponential distribution
   *
-  * @param eta Vector, linear predictor
+    * @param eta Vector, linear predictor
   * @return A vector
   */
-  vector exponential_log_haz(vector eta) {
-    return eta;
-  }
+    vector exponential_log_haz(vector eta) {
+      return eta;
+    }
 
   /**
-  * Log hazard for Weibull distribution
+    * Log hazard for Weibull distribution
   *
-  * @param eta Vector, linear predictor
+    * @param eta Vector, linear predictor
   * @param t Vector, event or censoring times
   * @param shape Real, Weibull shape
   * @return A vector
   */
-  vector weibull_log_haz(vector eta, vector t, real shape) {
-    vector[rows(eta)] res;
-    res = log(shape) + (shape - 1) * log(t) + eta;
-    return res;
-  }
+    vector weibull_log_haz(vector eta, vector t, real shape) {
+      vector[rows(eta)] res;
+      res = log(shape) + (shape - 1) * log(t) + eta;
+      return res;
+    }
 
   /**
-  * Log hazard for Gompertz distribution
+    * Log hazard for Gompertz distribution
   *
-  * @param eta Vector, linear predictor
+    * @param eta Vector, linear predictor
   * @param t Vector, event or censoring times
   * @param scale Real, Gompertz scale
   * @return A vector
   */
-  vector gompertz_log_haz(vector eta, vector t, real scale) {
-    vector[rows(eta)] res;
-    res = scale * t + eta;
-    return res;
-  }
+    vector gompertz_log_haz(vector eta, vector t, real scale) {
+      vector[rows(eta)] res;
+      res = scale * t + eta;
+      return res;
+    }
 
 
 
   /**
-  * Log hazard for B-spline model
+    * Log hazard for B-spline model
   *
-  * @param eta Vector, linear predictor
+    * @param eta Vector, linear predictor
   * @param t Vector, event or censoring times
   * @param coefs Vector, B-spline coefficients
   * @return A vector
   */
-  vector bspline_log_haz(vector eta, matrix basis, vector coefs) {
-    vector[rows(eta)] res;
-    res = basis * coefs + eta;
-    return res;
-  }
+    vector bspline_log_haz(vector eta, matrix basis, vector coefs) {
+      vector[rows(eta)] res;
+      res = basis * coefs + eta;
+      return res;
+    }
 
   /**
-  * Evaluate log survival or log CDF from the log hazard evaluated at
+    * Evaluate log survival or log CDF from the log hazard evaluated at
   * quadrature points and a corresponding vector of quadrature weights
   *
-  * @param qwts Vector, the quadrature weights
+    * @param qwts Vector, the quadrature weights
   * @param log_hazard Vector, log hazard at the quadrature points
   * @param qnodes Integer, the number of quadrature points for each individual
   * @param N Integer, the number of individuals (ie. rows(log_hazard) / qnodes)
   * @return A vector
   */
-  real quadrature_log_surv(vector qwts, vector log_hazard) {
-    real res;
-    res = - dot_product(qwts, exp(log_hazard)); // sum across all individuals
-    return res;
-  }
+    real quadrature_log_surv(vector qwts, vector log_hazard) {
+      real res;
+      res = - dot_product(qwts, exp(log_hazard)); // sum across all individuals
+      return res;
+    }
 
   vector quadrature_log_cdf(vector qwts, vector log_hazard, int qnodes, int N) {
     int M = rows(log_hazard);
@@ -167,9 +167,9 @@ functions {
     vector make_beta(vector z_beta, int prior_dist, vector prior_mean,
                      vector prior_scale) {
       vector[rows(z_beta)] beta;
-     // if (prior_dist == 0) beta = z_beta;
-   //   else if (prior_dist == 1)
-      beta = z_beta .* prior_scale + prior_mean;
+      // if (prior_dist == 0) beta = z_beta;
+      //   else if (prior_dist == 1)
+        beta = z_beta .* prior_scale + prior_mean;
       return beta;
     }
 
@@ -188,10 +188,10 @@ functions {
   * @return Nothing
   */
     real beta_lp(vector z_beta, int prior_dist) {
-     // if      (prior_dist == 1)
-      target += normal_lpdf(z_beta | 0, 1);
-      /* else prior_dist is 0 and nothing is added */
-        return target();
+      // if      (prior_dist == 1)
+        target += normal_lpdf(z_beta | 0, 1);
+        /* else prior_dist is 0 and nothing is added */
+          return target();
     }
 
   /**
@@ -207,30 +207,30 @@ functions {
       if (dist > 0) {
         if (dist == 1)
           target += normal_lpdf(aux_unscaled | 0, 1);
-            else
-              target += exponential_lpdf(aux_unscaled | 1);
+          else
+            target += exponential_lpdf(aux_unscaled | 1);
       }
       return target();
     }
 
   /**
-  * Log-prior for intercept parameters
+    * Log-prior for intercept parameters
   *
-  * @param gamma Real, the intercept parameter
+    * @param gamma Real, the intercept parameter
   * @param dist Integer, the type of prior distribution
   * @param mean Real, mean of prior distribution
   * @param scale Real, scale for the prior distribution
   * @param df Real, df for the prior distribution
   * @return Nothing
   */
-  real gamma_lp(real gamma, int dist, real mean, real scale) {
-    if (dist == 1)  // normal
+    real gamma_lp(real gamma, int dist, real mean, real scale) {
+      if (dist == 1)  // normal
       target += normal_lpdf(gamma | mean, scale);
-    //else if (dist == 2)  // student_t
-     // target += student_t_lpdf(gamma | df, mean, scale);
-    /* else dist is 0 and nothing is added */
-    return target();
-  }
+      //else if (dist == 2)  // student_t
+      // target += student_t_lpdf(gamma | df, mean, scale);
+      /* else dist is 0 and nothing is added */
+        return target();
+    }
 
   /**
     * Raise each element of x to the power of y
@@ -373,24 +373,17 @@ data {
   //int h;
   //vector[h] type;
 
-  int<lower=0> nevent01type2;
-  int<lower=0> nevent01type4;
-  int<lower=0> nevent02type3;
-  int<lower=0> nevent12type4;
+  int<lower=0> nevent01;
+  int<lower=0> nevent02;
+  int<lower=0> nevent12;
 
-  int<lower=0> nrcens01type1;
-  int<lower=0> nrcens01type3;
-  int<lower=0> nrcens02type1;
-  int<lower=0> nrcens02type2;
-  int<lower=0> nrcens02type4;
-  int<lower=0> nrcens12type2;
-
+  int<lower=0> nrcens01;
+  int<lower=0> nrcens02;
+  int<lower=0> nrcens12;
 
   int<lower=0> K01;
   int<lower=0> K02;
   int<lower=0> K12;
-
-
 
   // log crude event rate (used for centering log baseline hazard)
   real log_crude_event_rate01;
@@ -398,60 +391,42 @@ data {
   real log_crude_event_rate12;
 
   // response and time variables
-  vector[nevent01type2] t_event01type2;  // time of events
-  vector[nevent01type4] t_event01type4;  // time of events
-  vector[nevent02type3] t_event02type3;  // time of events
-  vector[nevent12type4] t_event12type4;  // time of events
+  vector[nevent01] t_event01;  // time of events
+  vector[nevent02] t_event02;  // time of events
+  vector[nevent12] t_event12;  // time of events
 
-
-  vector[nrcens01type1] t_rcens01type1;  // time of right censoring
-  vector[nrcens01type3] t_rcens01type3;  // time of right censoring
-  vector[nrcens02type1] t_rcens02type1;  // time of right censoring
-  vector[nrcens02type2] t_rcens02type2;  // time of right censoring
-  vector[nrcens02type4] t_rcens02type4;  // time of right censoring
-  vector[nrcens12type2] t_rcens12type2;  // time of right censoring
+  vector[nrcens01] t_rcens01;  // time of right censoring
+  vector[nrcens02] t_rcens02;  // time of right censoring
+  vector[nrcens12] t_rcens12;  // time of right censoring
 
   vector[K01] x_bar01;           // predictor means
   vector[K02] x_bar02;           // predictor means
   vector[K12] x_bar12;           // predictor means
 
+  matrix[nevent01, K01] x_event01;
+  matrix[nevent02, K02] x_event02;
+  matrix[nevent12, K12] x_event12;
 
-  matrix[nevent01type2, K01] x_event01type2;
-  matrix[nevent01type4, K01] x_event01type4;
-  matrix[nevent02type3, K02] x_event02type3;
-  matrix[nevent12type4, K12] x_event12type4;
-
-
-  matrix[nrcens01type1, K01] x_rcens01type1;
-  matrix[nrcens01type3, K01] x_rcens01type3;
-  matrix[nrcens02type1, K02] x_rcens02type1;
-  matrix[nrcens02type2, K02] x_rcens02type2;
-  matrix[nrcens02type4, K02] x_rcens02type4;
-  matrix[nrcens12type2, K12] x_rcens12type2;
-
+  matrix[nrcens01, K01] x_rcens01;
+  matrix[nrcens02, K02] x_rcens02;
+  matrix[nrcens12, K12] x_rcens12;
 
   // num. aux parameters for baseline hazard
   int<lower=0> nvars01;
   int<lower=0> nvars02;
   int<lower=0> nvars12;
 
-  matrix[nevent01type2, nvars01] basis_event01type2;
-  matrix[nevent01type4, nvars01] basis_event01type4;
-  matrix[nevent02type3, nvars02] basis_event02type3;
-  matrix[nevent12type4, nvars12] basis_event12type4;
+  matrix[nevent01, nvars01] basis_event01;
+  matrix[nevent02, nvars02] basis_event02;
+  matrix[nevent12, nvars12] basis_event12;
 
-  matrix[nevent01type2, nvars01] ibasis_event01type2;
-  matrix[nevent01type4, nvars01] ibasis_event01type4;
-  matrix[nevent02type3, nvars02] ibasis_event02type3;
-  matrix[nevent12type4, nvars12] ibasis_event12type4;
+  matrix[nevent01, nvars01] ibasis_event01;
+  matrix[nevent02, nvars02] ibasis_event02;
+  matrix[nevent12, nvars12] ibasis_event12;
 
-
-  matrix[nrcens01type1, nvars01] ibasis_rcens01type1;
-  matrix[nrcens01type3, nvars01] ibasis_rcens01type3;
-  matrix[nrcens02type1, nvars02] ibasis_rcens02type1;
-  matrix[nrcens02type2, nvars02] ibasis_rcens02type2;
-  matrix[nrcens02type4, nvars02] ibasis_rcens02type4;
-  matrix[nrcens12type2, nvars12] ibasis_rcens12type2;
+  matrix[nrcens01, nvars01] ibasis_rcens01;
+  matrix[nrcens02, nvars02] ibasis_rcens02;
+  matrix[nrcens12, nvars12] ibasis_rcens12;
 
   // baseline hazard type:
     //   1 = weibull
@@ -486,7 +461,7 @@ data {
   vector<lower=0>[K12]  prior_scale12;
 
   // prior family:
-  //   0 = none
+    //   0 = none
   //   1 = normal
   //   2 = student_t
   int<lower=0,upper=2> prior_dist_for_intercept01;
@@ -576,147 +551,111 @@ transformed parameters {
 
 model {
   // linear predictor
-  vector[nrcens01type1] eta_rcens01type1;  // time of right censoring
-  vector[nrcens01type3] eta_rcens01type3;  // time of right censoring
+  vector[nrcens01] eta_rcens01;  // time of right censoring
+  vector[nevent01] eta_event01;  // time of events
 
-  vector[nevent01type2] eta_event01type2;  // time of events
-  vector[nevent01type4] eta_event01type4;  // time of events
+  vector[nevent02] eta_event02;  // time of events
+  vector[nrcens02] eta_rcens02;  // time of right censoring for type 4
 
-  vector[nrcens02type1] eta_rcens02type1;  // time of right censoring
-  vector[nrcens02type2] eta_rcens02type2;  // time of right censoring
-  vector[nevent02type3] eta_event02type3;  // time of events
-  vector[nrcens02type4] eta_rcens02type4;  // time of right censoring for type 4
-
-  vector[nrcens12type2] eta_rcens12type2;  // time of right censoring
-  vector[nevent12type4] eta_event12type4;  // time of events
+  vector[nrcens12] eta_rcens12;  // time of right censoring
+  vector[nevent12] eta_event12;  // time of events
 
   // define linear predictor
   if (K01 > 0) {
-    if(nevent01type2 > 0)  eta_event01type2 = x_event01type2 * beta01;
-    if(nevent01type4 > 0)  eta_event01type4 = x_event01type4 * beta01;
-    if(nrcens01type1 > 0)  eta_rcens01type1 = x_rcens01type1 * beta01;
-    if(nrcens01type3 > 0)  eta_rcens01type3 = x_rcens01type3 * beta01;
+    if(nevent01 > 0)  eta_event01 = x_event01 * beta01;
+    if(nrcens01 > 0)  eta_rcens01 = x_rcens01 * beta01;
   } else {
-    if(nevent01type2 > 0)  eta_event01type2 = rep_vector(0.0, nevent01type2);
-    if(nevent01type4 > 0)  eta_event01type4 = rep_vector(0.0, nevent01type4);
-    if(nrcens01type1 > 0)  eta_rcens01type1 = rep_vector(0.0, nrcens01type1);
-    if(nrcens01type3 > 0)  eta_rcens01type3 = rep_vector(0.0, nrcens01type3);
+    if(nevent01 > 0)  eta_event01 = rep_vector(0.0, nevent01);
+    if(nrcens01 > 0)  eta_rcens01 = rep_vector(0.0, nrcens01);
   }
 
   if (K02 > 0) {
-    if(nevent02type3 > 0)  eta_event02type3 = x_event02type3 * beta02;
-    if(nrcens02type1 > 0)  eta_rcens02type1 = x_rcens02type1 * beta02;
-    if(nrcens02type2 > 0)  eta_rcens02type2 = x_rcens02type2 * beta02;
-    if(nrcens02type4 > 0)  eta_rcens02type4 = x_rcens02type4 * beta02;
+    if(nevent02 > 0)  eta_event02 = x_event02 * beta02;
+    if(nrcens02 > 0)  eta_rcens02 = x_rcens02 * beta02;
   } else {
-    if(nevent02type3 > 0)  eta_event02type3 = rep_vector(0.0, nevent02type3);
-    if(nrcens02type1 > 0)  eta_rcens02type1 = rep_vector(0.0, nrcens02type1);
-    if(nrcens02type2 > 0)  eta_rcens02type2 = rep_vector(0.0, nrcens02type2);
-    if(nrcens02type4 > 0)  eta_rcens02type4 = rep_vector(0.0, nrcens02type4);
+    if(nevent02 > 0)  eta_event02 = rep_vector(0.0, nevent02);
+    if(nrcens02 > 0)  eta_rcens02 = rep_vector(0.0, nrcens02);
   }
 
   if (K12 > 0){
-    if(nevent12type4 > 0)  eta_event12type4 = x_event12type4 * beta12;
-    if(nrcens12type2 > 0)  eta_rcens12type2 = x_rcens12type2 * beta12;
+    if(nevent12 > 0)  eta_event12 = x_event12 * beta12;
+    if(nrcens12 > 0)  eta_rcens12 = x_rcens12 * beta12;
   } else {
-    if(nevent12type4 > 0)  eta_event12type4 =  rep_vector(0.0, nevent12type4);
-    if(nrcens12type2 > 0)  eta_rcens12type2 =  rep_vector(0.0, nrcens12type2);
+    if(nevent12 > 0)  eta_event12 =  rep_vector(0.0, nevent12);
+    if(nrcens12 > 0)  eta_rcens12 =  rep_vector(0.0, nrcens12);
   }
 
   // add intercept
   if (has_intercept01 == 1) {
-    if(nevent01type2 > 0)  eta_event01type2 += gamma01[1];
-    if(nevent01type4 > 0)  eta_event01type4 += gamma01[1];
-    if(nrcens01type1 > 0)  eta_rcens01type1 += gamma01[1];
-    if(nrcens01type3 > 0)  eta_rcens01type3 += gamma01[1];
+    if(nevent01 > 0)  eta_event01 += gamma01[1];
+    if(nrcens01 > 0)  eta_rcens01 += gamma01[1];
   }
   if (has_intercept02 == 1) {
-    if(nevent02type3 > 0)  eta_event02type3 += gamma02[1];
-    if(nrcens02type1 > 0)  eta_rcens02type1 += gamma02[1];
-    if(nrcens02type2 > 0)  eta_rcens02type2 += gamma02[1];
-    if(nrcens02type4 > 0)  eta_rcens02type4 += gamma02[1];
+    if(nevent02 > 0)  eta_event02 += gamma02[1];
+    if(nrcens02 > 0)  eta_rcens02 += gamma02[1];
   }
   if (has_intercept12 == 1) {
-    if(nevent12type4 > 0)  eta_event12type4 += gamma12[1];
-    if(nrcens12type2 > 0)  eta_rcens12type2 += gamma12[1];
+    if(nevent12 > 0)  eta_event12 += gamma12[1];
+    if(nrcens12 > 0)  eta_rcens12 += gamma12[1];
   }
 
   // add on log crude event rate (helps to center intercept)
-    if(nevent01type2 > 0)  eta_event01type2 += log_crude_event_rate01;
-    if(nevent01type4 > 0)  eta_event01type4 += log_crude_event_rate01;
-    if(nrcens01type1 > 0)  eta_rcens01type1 += log_crude_event_rate01;
-    if(nrcens01type3 > 0)  eta_rcens01type3 += log_crude_event_rate01;
+  if(nevent01 > 0)  eta_event01 += log_crude_event_rate01;
+  if(nrcens01 > 0)  eta_rcens01 += log_crude_event_rate01;
 
-    if(nevent02type3 > 0)  eta_event02type3 += log_crude_event_rate02;
-    if(nrcens02type1 > 0)  eta_rcens02type1 += log_crude_event_rate02;
-    if(nrcens02type2 > 0)  eta_rcens02type2 += log_crude_event_rate02;
-    if(nrcens02type4 > 0)  eta_rcens02type4 += log_crude_event_rate02;
+  if(nevent02 > 0)  eta_event02 += log_crude_event_rate02;
+  if(nrcens02 > 0)  eta_rcens02 += log_crude_event_rate02;
 
-    if(nevent12type4 > 0)  eta_event12type4 += log_crude_event_rate12;
-    if(nrcens12type2 > 0)  eta_rcens12type2 += log_crude_event_rate12;
+  if(nevent12 > 0)  eta_event12 += log_crude_event_rate12;
+  if(nrcens12 > 0)  eta_rcens12 += log_crude_event_rate12;
 
-    if(type01 == 1){ // weibull
-      real shape01 = coefs01[1];
-      if (nrcens01type1 > 0) target +=  weibull_log_surv(eta_rcens01type1, t_rcens01type1, shape01);
-      if (nevent01type2 > 0) target +=  weibull_log_haz(eta_event01type2, t_event01type2, shape01);
-      if (nevent01type2 > 0) target +=  weibull_log_surv(eta_event01type2, t_event01type2, shape01);
-      if (nrcens01type3 > 0) target +=  weibull_log_surv(eta_rcens01type3, t_rcens01type3, shape01);
-      if (nevent01type4 > 0) target +=  weibull_log_haz(eta_event01type4, t_event01type4, shape01);
-      if (nevent01type4 > 0) target +=  weibull_log_surv(eta_event01type4, t_event01type4, shape01);
-    } else if(type01 == 4){ // M-splines
-      if (nrcens01type1 > 0) target +=  mspline_log_surv(eta_rcens01type1, ibasis_rcens01type1, coefs01);
-      if (nevent01type2 > 0) target +=  mspline_log_haz(eta_event01type2,  basis_event01type2, coefs01);
-      if (nevent01type2 > 0) target +=  mspline_log_surv(eta_event01type2,  ibasis_event01type2, coefs01);
-      if (nrcens01type3 > 0) target +=  mspline_log_surv(eta_rcens01type3, ibasis_rcens01type3, coefs01);
-      if (nevent01type4 > 0) target +=  mspline_log_haz(eta_event01type4,  basis_event01type4, coefs01);
-      if (nevent01type4 > 0) target +=  mspline_log_surv(eta_event01type4,  ibasis_event01type4, coefs01);
-    } else if (type02 == 05) { // exponential model
-      if (nrcens01type1 > 0) target +=  exponential_log_surv(eta_rcens01type1, t_rcens01type1);
-      if (nevent01type2 > 0) target +=  exponential_log_haz(eta_event01type2);
-      if (nevent01type2 > 0) target +=  exponential_log_surv(eta_event01type2, t_event01type2);
-      if (nrcens01type3 > 0) target +=  exponential_log_surv(eta_rcens01type3, t_rcens01type3);
-      if (nevent01type4 > 0) target +=  exponential_log_haz(eta_event01type4);
-      if (nevent01type4 > 0) target +=  exponential_log_surv(eta_event01type4, t_event01type4);
+  if(type01 == 1){ // weibull
+    real shape01 = coefs01[1];
+    if (nevent01 > 0) target +=  weibull_log_haz(eta_event01, t_event01, shape01);
+    if (nevent01 > 0) target +=  weibull_log_surv(eta_event01, t_event01, shape01);
+    if (nrcens01 > 0) target +=  weibull_log_surv(eta_rcens01, t_rcens01, shape01);
+  } else if(type01 == 4){ // M-splines
+    if (nrcens01 > 0) target +=  mspline_log_surv(eta_rcens01, ibasis_rcens01, coefs01);
+    if (nevent01 > 0) target +=  mspline_log_haz(eta_event01,  basis_event01, coefs01);
+    if (nevent01 > 0) target +=  mspline_log_surv(eta_event01,  ibasis_event01, coefs01);
+  } else if (type02 == 05) { // exponential model
+    if (nevent01 > 0) target +=  exponential_log_haz(eta_event01);
+    if (nevent01 > 0) target +=  exponential_log_surv(eta_event01, t_event01);
+    if (nrcens01 > 0) target +=  exponential_log_surv(eta_rcens01, t_rcens01);
   } else {
-      reject("Bug found: invalid baseline hazard 01 (without quadrature).");
-    }
+    reject("Bug found: invalid baseline hazard 01 (without quadrature).");
+  }
 
   if(type02 == 1){ // weibull
     real shape02 = coefs02[1];
-    if (nrcens02type1 > 0) target +=  weibull_log_surv(eta_rcens02type1, t_rcens02type1, shape02);
-    if (nrcens02type2 > 0) target +=  weibull_log_surv(eta_rcens02type2, t_rcens02type2, shape02);
-    if (nevent02type3 > 0) target +=  weibull_log_haz(eta_event02type3, t_event02type3, shape02);
-    if (nevent02type3 > 0) target +=  weibull_log_surv(eta_event02type3, t_event02type3, shape02);
-    if (nrcens02type4 > 0) target +=  weibull_log_surv(eta_rcens02type4, t_rcens02type4, shape02);
+    if (nevent02 > 0) target +=  weibull_log_haz(eta_event02, t_event02, shape02);
+    if (nevent02 > 0) target +=  weibull_log_surv(eta_event02, t_event02, shape02);
+    if (nrcens02 > 0) target +=  weibull_log_surv(eta_rcens02, t_rcens02, shape02);
   } else if(type02 == 4){ // M-splines
-    if (nrcens02type1 > 0) target +=  mspline_log_surv(eta_rcens02type1, ibasis_rcens02type1, coefs02);
-    if (nrcens02type2 > 0) target +=  mspline_log_surv(eta_rcens02type2, ibasis_rcens02type2, coefs02);
-    if (nevent02type3 > 0) target +=  mspline_log_haz(eta_event02type3, basis_event02type3, coefs02);
-    if (nevent02type3 > 0) target +=  mspline_log_surv(eta_event02type3, ibasis_event02type3, coefs02);
-    if (nrcens02type4 > 0) target +=  mspline_log_surv(eta_rcens02type4,  ibasis_rcens02type4, coefs02);
+    if (nrcens02 > 0) target +=  mspline_log_surv(eta_rcens02, ibasis_rcens02, coefs02);
+    if (nevent02 > 0) target +=  mspline_log_haz(eta_event02, basis_event02, coefs02);
+    if (nevent02 > 0) target +=  mspline_log_surv(eta_event02, ibasis_event02, coefs02);
   } else if (type02 == 05) { // exponential model
-  if (nrcens02type1 > 0) target +=  exponential_log_surv(eta_rcens02type1, t_rcens02type1);
-    if (nrcens02type2 > 0) target +=  exponential_log_surv(eta_rcens02type2, t_rcens02type2);
-    if (nevent02type3 > 0) target +=  exponential_log_haz(eta_event02type3);
-    if (nevent02type3 > 0) target +=  exponential_log_surv(eta_event02type3, t_event02type3);
-    if (nrcens02type4 > 0) target +=  exponential_log_surv(eta_rcens02type4, t_rcens02type4);
+    if (nevent02 > 0) target +=  exponential_log_haz(eta_event02);
+    if (nevent02 > 0) target +=  exponential_log_surv(eta_event02, t_event02);
+    if (nrcens02 > 0) target +=  exponential_log_surv(eta_rcens02, t_rcens02);
   } else {
     reject("Bug found: invalid baseline hazard 02 (without quadrature).");
   }
 
   if(type12 == 1){ // weibull
     real shape12 = coefs12[1];
-    if (nrcens12type2 > 0) target +=  weibull_log_surv(eta_rcens12type2, t_rcens12type2, shape12);
-    if (nevent12type4 > 0) target +=  weibull_log_haz(eta_event12type4, t_event12type4, shape12);
-    if (nevent12type4 > 0) target +=  weibull_log_surv(eta_event12type4, t_event12type4, shape12);
+    if (nrcens12 > 0) target +=  weibull_log_surv(eta_rcens12, t_rcens12, shape12);
+    if (nevent12 > 0) target +=  weibull_log_haz(eta_event12, t_event12, shape12);
+    if (nevent12 > 0) target +=  weibull_log_surv(eta_event12, t_event12, shape12);
   } else if(type12 == 4){ // M-splines
-    if (nrcens12type2 > 0) target +=  mspline_log_surv(eta_rcens12type2, ibasis_rcens12type2, coefs12);
-    if (nevent12type4 > 0) target +=  mspline_log_haz(eta_event12type4,  basis_event12type4, coefs12);
-    if (nevent12type4 > 0) target +=  mspline_log_surv(eta_event12type4,  ibasis_event12type4, coefs12);
-  } else if (type12 == 05) { // exponential model
-  if (nrcens12type2 > 0) target +=  exponential_log_surv(eta_rcens12type2, t_rcens12type2);
-    if (nevent12type4 > 0) target +=  exponential_log_haz(eta_event12type4);
-    if (nevent12type4 > 0) target +=  exponential_log_surv(eta_event12type4, t_event12type4);
+    if (nrcens12 > 0) target +=  mspline_log_surv(eta_rcens12, ibasis_rcens12, coefs12);
+    if (nevent12 > 0) target +=  mspline_log_haz(eta_event12,  basis_event12, coefs12);
+    if (nevent12 > 0) target +=  mspline_log_surv(eta_event12,  ibasis_event12, coefs12);
+  } else if (type12 == 5) { // exponential model
+    if (nrcens12 > 0) target +=  exponential_log_surv(eta_rcens12, t_rcens12);
+    if (nevent12 > 0) target +=  exponential_log_haz(eta_event12);
+    if (nevent12 > 0) target +=  exponential_log_surv(eta_event12, t_event12);
   } else {
     reject("Bug found: invalid baseline hazard 12 (without quadrature).");
   }

@@ -234,7 +234,7 @@
 #' formula12 <- Surv(time=difft,event=delta_T)~x_c
 #'
 #' }
-idm_stan <- function(formula01,
+idm_stan_old <- function(formula01,
                      formula02,
                      formula12,
                      data,
@@ -281,38 +281,24 @@ idm_stan <- function(formula01,
   algorithm <- match.arg(algorithm)
 
 
-
-  ## Parse formula
-
   formula <- list(formula01, formula02, formula12)
   h <- length(formula)
 
   formula <- lapply(formula, function(f) parse_formula(f, data))
 
-  ## Create data
   data01 <- nruapply(0:1, function(o){
     lapply(0:1, function(p) make_model_data(formula = formula[[1]], aux_formula = formula[[2]], data = data, cens = p, aux_cens = o))
   }) # row subsetting etc.
 
-  data02 <- nruapply(0:1, function(o){
-    lapply(0:1, function(p) make_model_data(formula = formula[[2]], aux_formula = formula[[1]], data = data, cens = p, aux_cens = o))
-  }) # row subsetting etc.
+  data02_13 <- lapply(0:1, function(o)
+    make_model_data(formula = formula[[2]], aux_formula = formula[[1]], data = data, cens = o, aux_cens = 0) )
 
-  data02 <- handle_data(data02)
+  data02_24 <- lapply(0:1, function(o)
+    make_model_data(formula = formula[[2]], aux_formula = formula[[1]], data = data, cens = o, aux_cens = 1))
+
+  data02 <-  list(data02_13[[1]], data02_24[[1]], data02_13[[2]], data02_24[[2]] )
 
   data12 <- lapply(0:1, function(p) make_model_data(formula = formula[[3]], aux_formula = formula[[1]], data = data, cens = p, aux_cens = 1) ) # row subsetting etc.
-
-  nd01 <- sapply(data01, function(d) nrow(d))
-  nd02 <- sapply(data02, function(d) nrow(d))
-  nd12 <- sapply(data12, function(d) nrow(d))
-
-  ind01 <- cumsum(nd01)
-  ind02 <- cumsum(nd02)
-  ind12 <- cumsum(nd12)
-
-  data01 <- do.call(rbind, data01)
-  data02 <- do.call(rbind, data02)
-  data12 <- do.call(rbind, data12)
 
   data <- list(data01, data02, data12)
 
@@ -322,75 +308,78 @@ idm_stan <- function(formula01,
 
   #----- model frame stuff
 
-  mf_stuff <-  lapply(seq_along(formula), function(i) {
-    make_model_frame(formula[[i]]$tf_form, data[[i]])
+  mf_stuff <- lapply(seq_along(formula), function(f) {
+    lapply(seq_along(data[[f]]), function(d) make_model_frame(formula[[f]]$tf_form, data[[f]][[d]])
+    )
   })
 
-  mf <- lapply(mf_stuff, function(m) m$mf)   # model frame
-  mt <- lapply(mf_stuff, function(m) m$mt)  # model terms
+  mf_stuff[[2]][[2]] <- make_model_frame(as.formula(paste0(c(formula[[1]]$lhs, formula[[2]]$rhs), collapse = "~") ),
+                                         data[[2]][[2]])
+  mf_stuff[[2]][[4]] <- make_model_frame(as.formula(paste0(c(formula[[1]]$lhs, formula[[2]]$rhs), collapse = "~") ),
+                                         data[[2]][[4]])
+
+  mf <- lapply(mf_stuff, function(m) lapply(m, function(n) n$mf) )  # model frame
+  mt <- lapply(mf_stuff, function(m) lapply(m, function(n) n$mt) ) # model terms
 
   #----- dimensions and response vectors
 
   # entry and exit times for each row of data
-  t_beg <- lapply(mf, function(m) make_t(m, type = "beg") ) # entry time
-  t_end <- lapply(mf, function(m) make_t(m, type = "end") ) # exit time
-  t_upp <- lapply(mf, function(m) make_t(m, type = "upp") ) # upper time for interval censoring
-
-  t_beg <- handle_censor(t_beg, ind02, ind01)
-  t_end <- handle_censor(t_end, ind02, ind01)
-  t_upp <- handle_censor(t_upp, ind02, ind01)
-
+  t_beg <- lapply(mf, function(m) lapply(m, function(n) make_t(n, type = "beg") ) )# entry time
+  t_end <- lapply(mf, function(m) lapply(m, function(n) make_t(n, type = "end") ) )# exit time
+  t_upp <- lapply(mf, function(m) lapply(m, function(n) make_t(n, type = "upp") ) )# upper time for interval censoring
 
   # ensure no event or censoring times are zero (leads to degenerate
   # estimate for log hazard for most baseline hazards, due to log(0))
 
-  for(i in seq_along(t_end ) ){
-    check1 <- any(t_end[[i]] <= 0, na.rm = TRUE)
+  for(i in seq_along(dlist(t_end) ) ){
+    check1 <- any(dlist(t_end)[[i]] <= 0, na.rm = TRUE)
     if (check1)
       stop2("All event and censoring times must be greater than 0.")
   }
 
   # event indicator for each row of data
-  status <- lapply(mf, function(m) make_d(m))
-  status <- handle_status(status, ind02, nd02)
+  status <- lapply(mf, function(m) lapply(m, function(n) make_d(n)) )
+  # correct status data02type3
+  status[[2]][[2]] <- rep(0, length(status[[2]][[2]]) )
+  status[[2]][[4]] <- rep(0, length(status[[2]][[4]]) )
 
-  for(i in seq_along(status)){
-      if (any(status[[i]] < 0 || status[[i]] > 3))
+  for(i in seq_along(dlist(status))){
+    if(length(dlist(status)[[i]] > 0)) {
+      if (any(dlist(status)[[i]] < 0 || dlist(status)[[i]] > 3))
         stop2("Invalid status indicator in formula.")
     }
+  }
 
   # delayed entry indicator for each row of data
-  delayed <- lapply(t_beg, function(t)as.logical(!t == 0) )
+  delayed <- lapply(t_beg, function(t) lapply(t, function(i) as.logical(!i == 0) ) )
 
   # time variables for stan
-  t_event <- lapply(seq_along(t_end), function(t)
-    t_end[[t]][status[[t]] == 1] )  # exact event time
-  t_rcens <- lapply(seq_along(t_end), function(t)
-    t_end[[t]][status[[t]] == 0] ) # right censoring time
-  t_lcens <- lapply(seq_along(t_end),  function(t)
-    t_end[[t]][status[[t]] == 2] ) # left censoring time
-
-  t_icenl <- lapply(seq_along(t_end),  function(t)
-    t_end[[t]][status[[t]] == 3] ) # lower limit of interval censoring time
-
-  t_icenu <- lapply(seq_along(t_upp), function(t)
-    t_upp[[t]][status[[t]] == 3] ) # upper limit of interval censoring time
-  t_delay <- lapply(seq_along(t_beg),  function(t)
-    t_beg[[t]][delayed[[t]]] )
+  t_event <- lapply(seq_along(t_end), function(t) lapply(seq_along(t_end[[t]]), function(i)
+    t_end[[t]][[i]][status[[t]][[i]] == 1] ) ) # exact event time
+  t_rcens <- lapply(seq_along(t_end),  function(t) lapply(seq_along(t_end[[t]]), function(i)
+    t_end[[t]][[i]][status[[t]][[i]] == 0] ) )# right censoring time
+  t_lcens <- lapply(seq_along(t_end),  function(t) lapply(seq_along(t_end[[t]]), function(i)
+    t_end[[t]][[i]][status[[t]][[i]] == 2] ) )# left censoring time
+  t_icenl <- lapply(seq_along(t_end),  function(t) lapply(seq_along(t_end[[t]]), function(i)
+    t_end[[t]][[i]][status[[t]][[i]] == 3] ) ) # lower limit of interval censoring time
+  t_icenu <- lapply(seq_along(t_upp), function(t) lapply(seq_along(t_end[[t]]), function(i)
+    t_upp[[t]][[i]][status[[t]][[i]] == 3] )  ) # upper limit of interval censoring time
+  t_delay <- lapply(seq_along(t_beg),  function(t) lapply(seq_along(t_end[[t]]), function(i)
+    t_beg[[t]][[i]][delayed[[t]][[i]]] )   )
 
   # calculate log crude event rate
-  t_tmp <- lapply(seq_along(t_end), function(t) sum(rowMeans(cbind(t_end[[t]], t_upp[[t]] ), na.rm = TRUE) - t_beg[[t]] ))
+  t_tmp <- lapply(seq_along(t_end), function(t) sum(rowMeans(cbind(dlist(t_end[[t]]), dlist(t_upp[[t]]) ), na.rm = TRUE) - dlist(t_beg[[t]] )) )
 
-  d_tmp <- lapply(status, function(s) sum(!s == 0) )
+  d_tmp <- lapply(status, function(s) sum(!dlist(s) == 0) )
 
   log_crude_event_rate <- lapply(seq_along(t_tmp), function(t) log(d_tmp[[t]] / t_tmp[[t]]))
 
   # dimensions
-  nevent <- lapply(status, function(s)  sum(s == 1))
-  nrcens <- lapply(status,  function(s) sum(s == 0))
-  nlcens <- lapply(status, function(s) sum(s == 2))
-  nicens <- lapply(status, function(s) sum(s == 3))
-  ndelay <- lapply(delayed, function(d) sum(d))
+  nevent <- lapply(status, function(s) lapply(s, function(p) sum(p == 1)) )
+  nrcens <- lapply(status,  function(s) lapply(s, function(p) sum(p == 0)) )
+  nlcens <- lapply(status, function(s) lapply(s, function(p) sum(p == 2)) )
+  nicens <- lapply(status, function(s) lapply(s, function(p) sum(p == 3)) )
+  ndelay <- lapply(delayed, function(d) lapply(d, function(e) sum(e)) )
 
   #----- baseline hazard
 
@@ -398,106 +387,153 @@ idm_stan <- function(formula01,
   basehaz <- list(basehaz01, basehaz02, basehaz12)
   ok_basehaz_ops <- lapply(basehaz, function(b) get_ok_basehaz_ops(b))
 
-  basehaz <- lapply(seq_along(basehaz), function(b)
+  basehaz <- lapply(seq_along(basehaz), function(b) lapply(seq_along(t_end[[b]]), function(i)
     sw( handle_basehaz_surv(basehaz = basehaz[[b]],
-                            basehaz_ops = basehaz_ops[[b]],
-                            ok_basehaz = ok_basehaz,
-                            ok_basehaz_ops = ok_basehaz_ops[[b]],
-                            times = t_end[[b]],
-                            status = status[[b]],
-                            min_t = min(t_beg[[b]]),
-                            max_t = max(c(t_end[[b]], t_upp[[b]]), na.rm = TRUE ) )
-    ))
+                        basehaz_ops = basehaz_ops[[b]],
+                        ok_basehaz = ok_basehaz,
+                        ok_basehaz_ops = ok_basehaz_ops[[b]],
+                        times = t_end[[b]][[i]],
+                        status = status[[b]][[i]],
+                        min_t = min(t_beg[[b]][[i]]),
+                        max_t = max(c(t_end[[b]][[i]], t_upp[[b]][[i]]), na.rm = TRUE ) )
 
-  nvars <- lapply(basehaz, function(b) b$nvars)  # number of basehaz aux parameters
+    )))
+
+  nvars <- lapply(basehaz, function(f) lapply(f, function(b) b$nvars) ) # number of basehaz aux parameters
 
   # flag if intercept is required for baseline hazard
-  has_intercept   <- lapply(basehaz, function(b) ai(has_intercept(b)) )
-  has_quadrature <- lapply(basehaz,function(b) FALSE) #NOT IMPLEMENTED IN THIS RELEASE
+  has_intercept   <- lapply(basehaz, function(f) lapply(f, function(b) ai(has_intercept(b)) ) )
+  has_quadrature <- lapply(basehaz, function(f) lapply(f, function(b) FALSE)) #NOT IMPLEMENTED IN THIS RELEASE
 
 
   #----- basis terms for baseline hazard
-  #       # NOT IMPLEMENTED
-  #       #basis_cpts[[b]][[i]] <- make_basis(cpts[[b]], basehaz[[i]])
+  basis_cpts <- rep(list(list()), h)
+  basis_event  <- rep(list(list()), h)
+  ibasis_event <- rep(list(list()), h)
+  ibasis_lcens <- rep(list(list()), h)
+  ibasis_rcens <- rep(list(list()), h)
+  ibasis_icenl <- rep(list(list()), h)
+  ibasis_icenu <- rep(list(list()), h)
+  ibasis_delay <- rep(list(list()), h)
+  for(b in seq_along(basehaz) ){
+    for(i in seq_along(basehaz[[b]]) ){
+      if (has_quadrature[[b]][[i]]) {
+        # NOT IMPLEMENTED
+        #basis_cpts[[b]][[i]] <- make_basis(cpts[[b]], basehaz[[i]])
 
+      } else {
+        basis_event[[b]][[i]]  <- make_basis(t_event[[b]][[i]], basehaz[[b]][[i]])
 
-  basis_event <- lapply(seq_along(basehaz), function(i) make_basis(times = t_event[[i]], basehaz = basehaz[[i]]))
+        ibasis_event[[b]][[i]]  <- make_basis(t_event[[b]][[i]], basehaz[[b]][[i]], integrate = TRUE)
+        ibasis_lcens[[b]][[i]]  <- make_basis(t_lcens[[b]][[i]], basehaz[[b]][[i]], integrate = TRUE)
+        ibasis_rcens[[b]][[i]]  <- make_basis(t_rcens[[b]][[i]], basehaz[[b]][[i]], integrate = TRUE)
+        ibasis_icenl[[b]][[i]]  <- make_basis(t_icenl[[b]][[i]], basehaz[[b]][[i]], integrate = TRUE)
+        ibasis_icenu[[b]][[i]]  <- make_basis(t_icenu[[b]][[i]], basehaz[[b]][[i]], integrate = TRUE)
+        ibasis_delay[[b]][[i]]  <-make_basis(t_delay[[b]][[i]], basehaz[[b]][[i]], integrate = TRUE)
+     }
+    }
+  }
 
-  ibasis_event <- lapply(seq_along(basehaz), function(i) make_basis(times = t_event[[i]], basehaz = basehaz[[i]], integrate = TRUE) )
-  ibasis_rcens <- lapply(seq_along(basehaz), function(i) make_basis(times = t_rcens[[i]], basehaz = basehaz[[i]], integrate = TRUE) )
-  ibasis_lcens <- lapply(seq_along(basehaz), function(i) make_basis(times = t_lcens[[i]], basehaz = basehaz[[i]], integrate = TRUE) )
-  ibasis_icenl <- lapply(seq_along(basehaz), function(i) make_basis(times = t_icenl[[i]], basehaz = basehaz[[i]], integrate = TRUE) )
-  ibasis_icenu <- lapply(seq_along(basehaz), function(i) make_basis(times = t_icenu[[i]], basehaz = basehaz[[i]], integrate = TRUE) )
-  ibasis_delay <- lapply(seq_along(basehaz), function(i) make_basis(times = t_delay[[i]],basehaz =  basehaz[[i]], integrate = TRUE) )
 
   #----- predictor matrices
 
   # time-fixed predictor matrix
-  x_stuff <- lapply(seq_along(mf), function(i) make_x(formula = formula[[i]]$tf_form, mf[[i]]))
+  x_stuff01 <- lapply(mf[[1]], function(m) make_x(formula[[1]]$tf_form, m) )
+  x_stuff02 <- list(
+    make_x(formula[[2]]$tf_form, mf[[2]][[1]]),
+    make_x(as.formula(paste0(c(formula[[1]]$lhs, formula[[2]]$rhs), collapse = "~") ), mf[[2]][[2]]),
+    make_x(formula[[2]]$tf_form, mf[[2]][[3]]),
+    make_x(as.formula(paste0(c(formula[[1]]$lhs, formula[[2]]$rhs), collapse = "~") ), mf[[2]][[4]])
+  )
 
-  x   <- lapply(x_stuff,function(n) n$x)
-  x_bar <- lapply(x_stuff, function(n) n$x_bar)
+  x_stuff12 <- lapply(mf[[3]], function(m) make_x(formula[[3]]$tf_form, m) )
+  x_stuff <- list(x_stuff01, x_stuff02, x_stuff12)
+
+  x   <- lapply(x_stuff, function(m) lapply(m, function(n) n$x) )
+
   # column means of predictor matrix
+  x_bar01 <- aa(colMeans(do.call(rbind, x[[1]])) )
+  x_bar02 <- aa(colMeans(do.call(rbind, x[[2]])) )
+  x_bar12 <- aa(colMeans(do.call(rbind, x[[3]])) )
 
-  x_centered <-  lapply(x_stuff, function(n) n$x_centered  )
+  x_centered <-  lapply(x_stuff, function(m) lapply(m, function(n) n$x_centered  ))
 
-  x_event <- lapply(seq_along(status), function(i) keep_rows(x_centered[[i]], status[[i]] == 1) )
-  x_lcens <- lapply(seq_along(status), function(i) keep_rows(x_centered[[i]], status[[i]] == 2) )
-  x_rcens <- lapply(seq_along(status), function(i) keep_rows(x_centered[[i]], status[[i]] == 0) )
-  x_icens <- lapply(seq_along(status), function(i) keep_rows(x_centered[[i]], status[[i]] == 3) )
-  x_delay <- lapply(seq_along(status),  function(i)keep_rows(x_centered[[i]], delayed[[i]]) )
-  K <- lapply(x, function(i) ncol(i) )
+  x_event <- lapply(seq_along(status), function(s) lapply( seq_along(status[[s]]), function(i) keep_rows(x[[s]][[i]], status[[s]][[i]] == 1) ) )
+  x_lcens <- lapply(seq_along(status), function(s) lapply( seq_along(status[[s]]), function(i)keep_rows(x[[s]][[i]], status[[s]][[i]] == 2) ))
+  x_rcens <- lapply(seq_along(status), function(s) lapply( seq_along(status[[s]]), function(i)keep_rows(x[[s]][[i]], status[[s]][[i]] == 0) ))
+  x_icens <- lapply(seq_along(status), function(s) lapply( seq_along(status[[s]]), function(i)keep_rows(x[[s]][[i]], status[[s]][[i]] == 3) ))
+  x_delay <- lapply(seq_along(status), function(s) lapply( seq_along(status[[s]]), function(i)keep_rows(x[[s]][[i]], delayed[[s]][[i]]) ))
+  K <- lapply(x, function(s) lapply( s, function(i) ncol(i) ))
 
   standata <- nlist(
 
-    K01 = K[[1]], K02 = K[[2]], K12 = K[[3]],
-    nvars01 = nvars[[1]] , nvars02 = nvars[[2]], nvars12 = nvars[[3]],
+    K01 = K[[1]][[1]], K02 = K[[2]][[1]], K12 = K[[3]][[1]],
+    nvars01 = nvars[[1]][[1]] , nvars02 = nvars[[2]][[1]], nvars12 = nvars[[3]][[1]],
 
-    x_bar01 = x_bar[[1]],x_bar02 = x_bar[[2]],x_bar12 = x_bar[[3]],
+    x_bar01 = x_bar01,
+    x_bar02 = x_bar02,
+    x_bar12 = x_bar02,
 
-    has_intercept01 = has_intercept[[1]], has_intercept02 = has_intercept[[2]], has_intercept12 = has_intercept[[3]],
+    has_intercept01 = has_intercept[[1]][[1]], has_intercept02 = has_intercept[[2]][[1]], has_intercept12 = has_intercept[[3]][[1]],
+    type01 = basehaz[[1]][[1]]$type, type02 = basehaz[[2]][[1]]$type, type12 = basehaz[[3]][[1]]$type,
 
-    type01 = basehaz[[1]]$type,
-    type02 = basehaz[[2]]$type,
-    type12 = basehaz[[3]]$type,
+    log_crude_event_rate01 = log_crude_event_rate[[1]],
+    log_crude_event_rate02 = log_crude_event_rate[[2]],
+    log_crude_event_rate12 = log_crude_event_rate[[3]],
 
-    log_crude_event_rate01 = log_crude_event_rate[[1]],log_crude_event_rate02 = log_crude_event_rate[[2]],log_crude_event_rate12 = log_crude_event_rate[[3]],
 
-    nevent01 = nevent[[1]],
-    nevent02 = nevent[[2]],
-    nevent12 = nevent[[3]],
+    nevent01type2 = nevent[[1]][[2]],
+    nevent01type4 = nevent[[1]][[4]],
+    nevent02type3 = nevent[[2]][[3]],
+    nevent12type4 = nevent[[3]][[2]],
 
-    nrcens01 = nrcens[[1]],
-    nrcens02 = nrcens[[2]],
-    nrcens12 = nrcens[[3]],
+    nrcens01type1 = nrcens[[1]][[1]],
+    nrcens01type3 = nrcens[[1]][[3]],
+    nrcens02type1 = nrcens[[2]][[1]],
+    nrcens02type2 = nrcens[[2]][[2]],
+    nrcens02type4 = nrcens[[2]][[4]],
+    nrcens12type2 = nrcens[[3]][[1]],
 
-    t_event01 = t_event[[1]],
-    t_event02 = t_event[[2]],
-    t_event12 = t_event[[3]],
+    t_event01type2 = t_event[[1]][[2]],
+    t_event01type4 = t_event[[1]][[4]],
+    t_event02type3 = t_event[[2]][[3]],
+    t_event12type4 = t_event[[3]][[2]],
 
-    t_rcens01 = t_rcens[[1]],
-    t_rcens02 = t_rcens[[2]],
-    t_rcens12 = t_rcens[[3]],
+    t_rcens01type1 = t_rcens[[1]][[1]],
+    t_rcens01type3 = t_rcens[[1]][[3]],
+    t_rcens02type1 = t_rcens[[2]][[1]],
+    t_rcens02type2 = t_rcens[[2]][[2]],
+    t_rcens02type4 = t_rcens[[2]][[4]],
+    t_rcens12type2 = t_rcens[[3]][[1]],
 
-    x_event01 = x_event[[1]],
-    x_event02 = x_event[[2]],
-    x_event12 = x_event[[3]],
+    x_event01type2 = x_event[[1]][[2]],
+    x_event01type4 = x_event[[1]][[4]],
+    x_event02type3 = x_event[[2]][[3]],
+    x_event12type4 = x_event[[3]][[2]],
 
-    x_rcens01 = x_rcens[[1]],
-    x_rcens02 = x_rcens[[2]],
-    x_rcens12 = x_rcens[[3]],
+    x_rcens01type1 = x_rcens[[1]][[1]],
+    x_rcens01type3 = x_rcens[[1]][[3]],
+    x_rcens02type1 = x_rcens[[2]][[1]],
+    x_rcens02type2 = x_rcens[[2]][[2]],
+    x_rcens02type4 = x_rcens[[2]][[4]],
+    x_rcens12type2 = x_rcens[[3]][[1]],
 
-    basis_event01 = basis_event[[1]],
-    basis_event02 = basis_event[[2]],
-    basis_event12 = basis_event[[3]],
+    basis_event01type2 = basis_event[[1]][[2]],
+    basis_event01type4 = basis_event[[1]][[4]],
+    basis_event02type3 = basis_event[[2]][[3]],
+    basis_event12type4 = basis_event[[3]][[2]],
 
-    ibasis_event01 = ibasis_event[[1]],
-    ibasis_event02 = ibasis_event[[2]],
-    ibasis_event12 = ibasis_event[[3]],
+    ibasis_event01type2 = ibasis_event[[1]][[2]],
+    ibasis_event01type4 = ibasis_event[[1]][[4]],
+    ibasis_event02type3 = ibasis_event[[2]][[3]],
+    ibasis_event12type4 = ibasis_event[[3]][[2]],
 
-    ibasis_rcens01 = ibasis_rcens[[1]],
-    ibasis_rcens02 = ibasis_rcens[[2]],
-    ibasis_rcens12 = ibasis_rcens[[3]]
+    ibasis_rcens01type1 = ibasis_rcens[[1]][[1]],
+    ibasis_rcens01type3 = ibasis_rcens[[1]][[3]],
+    ibasis_rcens02type1 = ibasis_rcens[[2]][[1]],
+    ibasis_rcens02type2 = ibasis_rcens[[2]][[2]],
+    ibasis_rcens02type4 = ibasis_rcens[[2]][[4]],
+    ibasis_rcens12type2 = ibasis_rcens[[3]][[1]]
   )
 
   #----- priors and hyperparameters
@@ -611,15 +647,15 @@ idm_stan <- function(formula01,
   }
 
   # autoscaling of priors
-  prior_stuff01           <- autoscale_prior(prior_stuff01, predictors = x[[1]])
+  prior_stuff01           <- autoscale_prior(prior_stuff01, predictors = do.call(rbind, x[[1]]) )
   prior_intercept_stuff01 <- autoscale_prior(prior_intercept_stuff01)
   prior_aux_stuff01       <- autoscale_prior(prior_aux_stuff01)
 
-  prior_stuff02           <- autoscale_prior(prior_stuff02, predictors =  x[[2]])
+  prior_stuff02           <- autoscale_prior(prior_stuff02, predictors = do.call(rbind, x[[2]]) )
   prior_intercept_stuff02 <- autoscale_prior(prior_intercept_stuff02)
   prior_aux_stuff02       <- autoscale_prior(prior_aux_stuff02)
 
-  prior_stuff12           <- autoscale_prior(prior_stuff12, predictors =  x[[3]])
+  prior_stuff12           <- autoscale_prior(prior_stuff12, predictors = do.call(rbind, x[[3]]) )
   prior_intercept_stuff12 <- autoscale_prior(prior_intercept_stuff12)
   prior_aux_stuff12       <- autoscale_prior(prior_aux_stuff12)
 
@@ -646,13 +682,6 @@ idm_stan <- function(formula01,
   standata$prior_df_for_intercept01   <- c(prior_intercept_stuff01$prior_df)
   standata$prior_scale_for_aux01      <- prior_aux_stuff01$prior_scale
   standata$prior_df_for_aux01         <- prior_aux_stuff01$prior_df
-  standata$global_prior_scale01       <- prior_stuff01$global_prior_scale
-  standata$global_prior_df01          <- prior_stuff01$global_prior_df
-  standata$slab_df01                  <- prior_stuff01$slab_df
-  standata$slab_scale01               <- prior_stuff01$slab_scale
-  # standata$prior_mean_for_smooth01    <- prior_smooth_stuff01$prior_mean
-  # standata$prior_scale_for_smooth01   <- prior_smooth_stuff01$prior_scale
-  # standata$prior_df_for_smooth01      <- prior_smooth_stuff01$prior_df
 
   standata$prior_mean02               <- prior_stuff02$prior_mean
   standata$prior_scale02              <- prior_stuff02$prior_scale
@@ -662,10 +691,6 @@ idm_stan <- function(formula01,
   standata$prior_df_for_intercept02   <- c(prior_intercept_stuff02$prior_df)
   standata$prior_scale_for_aux02      <- prior_aux_stuff02$prior_scale
   standata$prior_df_for_aux02         <- prior_aux_stuff02$prior_df
-  standata$global_prior_scale02       <- prior_stuff02$global_prior_scale
-  standata$global_prior_df02          <- prior_stuff02$global_prior_df
-  standata$slab_df02                  <- prior_stuff02$slab_df
-  standata$slab_scale02               <- prior_stuff02$slab_scale
 
   standata$prior_mean12               <- prior_stuff12$prior_mean
   standata$prior_scale12              <- prior_stuff12$prior_scale
@@ -675,12 +700,10 @@ idm_stan <- function(formula01,
   standata$prior_df_for_intercept12   <- c(prior_intercept_stuff12$prior_df)
   standata$prior_scale_for_aux12      <- prior_aux_stuff12$prior_scale
   standata$prior_df_for_aux12         <- prior_aux_stuff12$prior_df
-  standata$global_prior_scale12       <- prior_stuff12$global_prior_scale
-  standata$global_prior_df12          <- prior_stuff12$global_prior_df
-  standata$slab_df12                  <- prior_stuff12$slab_df
-  standata$slab_scale12               <- prior_stuff12$slab_scale
+
   # any additional flags
   standata$prior_PD <- ai(prior_PD)
+
 
   #---------------
   # Prior summary
@@ -695,7 +718,7 @@ idm_stan <- function(formula01,
     adjusted_priorEvent_aux_scale       = prior_aux_stuff01$prior_scale,
     e_has_intercept  = standata$has_intercept01,
     e_has_predictors = standata$K01 > 0,
-    basehaz = basehaz[[1]]
+    basehaz = basehaz[[1]][[1]]
   )
 
   prior_info02 <- summarize_jm_prior(
@@ -707,7 +730,7 @@ idm_stan <- function(formula01,
     adjusted_priorEvent_aux_scale       = prior_aux_stuff02$prior_scale,
     e_has_intercept  = standata$has_intercept02,
     e_has_predictors = standata$K02 > 0,
-    basehaz = basehaz[[2]]
+    basehaz = basehaz[[2]][[1]]
   )
 
   prior_info12 <- summarize_jm_prior(
@@ -719,7 +742,7 @@ idm_stan <- function(formula01,
     adjusted_priorEvent_aux_scale       = prior_aux_stuff12$prior_scale,
     e_has_intercept  = standata$has_intercept12,
     e_has_predictors = standata$K12 > 0,
-    basehaz = basehaz[[3]]
+    basehaz = basehaz[[3]][[1]]
   )
 
   #-----------

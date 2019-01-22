@@ -1,3 +1,89 @@
+
+rsimms_fn <- function(gamma01 = 0, shape01 = 0, beta01 = 0, covs = 0, maxt = 50, lambdas02 = 0, shape02 = 0, beta02 = 0, lambdas12 = 0, shape12 = 0, beta12 = 0, x = 0){
+
+  x = am(x)
+
+  fn01 <- function(t, x, betas,...){
+    (-1 + 0.02 * t - 0.03 * t ^ 2 + 0.005 * t ^ 3 + exp(beta01 * x))
+  }
+  s1 <- simsurv(loghazard = fn01, x = covs, maxt = 1.5)
+  colnames(s1)[2:3] <- c("yr", "dr")
+
+  # simulate non-terminal event
+  fn02 <- function(t, x, betas, ...){
+    (-1 + 0.02 * t - 0.03 * t ^ 2 + 0.005 * t ^ 3 + exp(beta02 * x))
+  }
+  s2 <- simsurv(loghazard = fn02, x = covs, maxt = 1.5)
+  head(s2)
+
+  colnames(s2)[2:3] <- c("yt", "dt")
+  # s2 and s1
+  s <- dplyr::left_join(s1, s2)
+
+  s$ostime <- with(s, pmin(yt, yr))
+  s$dftime <- with(s, pmin(yt, yr))
+  s$osevent <- s$dt
+  s$osevent[s$ostime == s$yr] <- 0
+  s$dfevent <- s$dr
+  s$dfevent[s$dftime == s$yt] <- 0
+
+  covs3 <- covs[s$dfevent == 1, ]
+  x3 <- x[s$dfevent == 1, ]
+
+  fn12 <- function(t, x, betas ,...){
+    (-1 + 0.02 * t - 0.03 * t ^ 2 + 0.005 * t ^ 3 + exp(beta12 * x3))
+  }
+
+  s3 <- simsurv(loghazard = fn12, x = covs3, maxt = 0.02)
+  head(s3)
+  colnames(s2)[2:3] <- c("yt", "dt")
+  s$ostime[s$dfevent == 1] <- s3$eventtime + s$ostime[s$dfevent == 1]
+  s$osevent[s$dfevent == 1] <- s3$status
+
+  s$trt <- covs$trt
+  s$timediff <- s$ostime - s$dftime
+  return(s)
+}
+#' Simulate multi-state survival data
+#' @export
+rsimms <- function(lambdas01, gammas01, beta01 = 0, covs, maxt = 50, lambdas02, gammas02, beta02 = 0, lambdas12, gammas12, beta12 = 0){
+  s1 <- simsurv(lambdas = lambdas01, gammas = gammas01,
+                x = covs, maxt = maxt, betas = beta01)
+  head(s1)
+
+  colnames(s1)[2:3] <- c("yr", "dr")
+
+  # simulate non-terminal event
+  s2 <- simsurv(lambdas = lambdas02, gammas = gammas02,
+                x = covs, maxt = maxt, betas = beta02)
+  head(s2)
+  colnames(s2)[2:3] <- c("yt", "dt")
+  # s2 and s1
+  s <- dplyr::left_join(s1, s2)
+
+  s$ostime <- with(s, pmin(yt, yr))
+  s$dftime <- with(s, pmin(yt, yr))
+  s$osevent <- s$dt
+  s$osevent[s$ostime == s$yr] <- 0
+  s$dfevent <- s$dr
+  s$dfevent[s$dftime == s$yt] <- 0
+
+
+  covs3 <- covs[s$dfevent == 1, ]
+
+  s3 <- simsurv(lambdas = lambdas12, gammas = gammas12,
+                x = covs3, maxt = maxt, betas = beta12)
+  head(s3)
+  colnames(s2)[2:3] <- c("yt", "dt")
+  s$ostime[s$dfevent == 1] <- s3$eventtime + s$ostime[s$dfevent == 1]
+  s$osevent[s$dfevent == 1] <- s3$status
+
+  s$trt <- covs$trt
+  s$timediff <- s$ostime - s$dftime
+  return(s)
+}
+
+
 #' Simulate survival data
 #'
 #' Simulate survival times from standard parametric survival distributions,
@@ -355,7 +441,7 @@ simsurv <- function(dist = c("weibull", "exponential", "gompertz"),
       stop("The named elements in 'tde' should correspond to named ",
            "columns in the data frame specified in 'x'.")
   }
-  
+
   if (!is.null(ids) == is.null(idvar))
     stop("Both 'idvar' and 'ids' must be supplied together.")
   if (!is.null(ids)) {
